@@ -93,6 +93,60 @@ func ConvertSliceOfMapToValuesForCreate(stmt *gorm.Statement, mapValues []map[st
 	return
 }
 
+// ConvertSliceOfMapToValuesForCreate convert slice of map to values
+func ConvertSliceOfMapPointersToValuesForCreate(stmt *gorm.Statement, mapValues []*map[string]interface{}) (values clause.Values) {
+	columns := make([]string, 0, len(mapValues))
+
+	// when the length of mapValues is zero,return directly here
+	// no need to call stmt.SelectAndOmitColumns method
+	if len(mapValues) == 0 {
+		stmt.AddError(gorm.ErrEmptySlice)
+		return
+	}
+
+	var (
+		result                    = make(map[string][]interface{}, len(mapValues))
+		selectColumns, restricted = stmt.SelectAndOmitColumns(true, false)
+	)
+
+	for idx, mapValue := range mapValues {
+		for k, v := range *mapValue {
+			if stmt.Schema != nil {
+				if field := stmt.Schema.LookUpField(k); field != nil {
+					k = field.DBName
+				}
+			}
+
+			if _, ok := result[k]; !ok {
+				if v, ok := selectColumns[k]; (ok && v) || (!ok && !restricted) {
+					result[k] = make([]interface{}, len(mapValues))
+					columns = append(columns, k)
+				} else {
+					continue
+				}
+			}
+
+			result[k][idx] = v
+		}
+	}
+
+	sort.Strings(columns)
+	values.Values = make([][]interface{}, len(mapValues))
+	values.Columns = make([]clause.Column, len(columns))
+	for idx, column := range columns {
+		values.Columns[idx] = clause.Column{Name: column}
+
+		for i, v := range result[column] {
+			if len(values.Values[i]) == 0 {
+				values.Values[i] = make([]interface{}, len(columns))
+			}
+
+			values.Values[i][idx] = v
+		}
+	}
+	return
+}
+
 func hasReturning(tx *gorm.DB, supportReturning bool) (bool, gorm.ScanMode) {
 	if supportReturning {
 		if c, ok := tx.Statement.Clauses["RETURNING"]; ok {
