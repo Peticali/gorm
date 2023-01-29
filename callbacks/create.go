@@ -187,6 +187,8 @@ func ConvertToCreateValues(stmt *gorm.Statement) (values clause.Values) {
 		values = ConvertSliceOfMapToValuesForCreate(stmt, *value)
 	case *[]*map[string]interface{}:
 		values = ConvertSliceOfMapPointersToValuesForCreate(stmt, *value)
+	case []*map[string]interface{}:
+		values = ConvertSliceOfMapPointersToValuesForCreate(stmt, value)
 	default:
 		var (
 			selectColumns, restricted = stmt.SelectAndOmitColumns(true, false)
